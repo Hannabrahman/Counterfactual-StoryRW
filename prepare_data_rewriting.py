@@ -22,7 +22,7 @@ import tensorflow as tf
 import texar as tx
 
 from utils import processor
-from utils import data_utils_rewriting as data_utils
+from utils import roc_data_utils_rewriting as data_utils
 
 # pylint: disable=invalid-name, too-many-locals, too-many-statements
 

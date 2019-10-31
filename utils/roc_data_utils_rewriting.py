@@ -27,12 +27,11 @@ class InputExample(object):
     def __init__(self, x1, x2, xx2, y, yy=None):
         self.x1 = x1
         self.x2 = x2
-        self.xx2 = xx2
-        self.y = y
-        self.yy = yy
+        self.x3 = x3
+        self.x4 = x4
 
 
-class InputFeatures(object):
+class InputFeatures(object):  # not used in this project!
 
     def __init__(self, x1x2yx1xx2, x1x2yx1my, x1x2yx1xx2yy,
                  x1x2yx1xx2_len, x1x2yx1my_len, x1x2yx1m_len,
@@ -65,108 +64,116 @@ class InputFeatures(object):
 #        #tokens_xx2.pop()
 #        tokens_y.pop()
 
-def _truncate_seqs(x1, x2, xx2, y, max_length, encoder):
+def _truncate_seqs(x1, x2, x3, x4, max_length, encoder):
     while True:
-        ids = encoder.encode(x1 + ' ' + x2 + ' ' + y + ' | ' + x1 + ' ' + xx2 + ' ' + y + ' ')
+        ids = encoder.encode(x1 + ' | ' + x3 + ' | ' + x4 + ' ')
         if len(ids) <= max_length:
             break
-        y_ = y.split()
-        y = ' '.join(y_[:-1])
+        x4_ = x4.split()
+        x4 = ' '.join(x4_[:-1])
     return y
 
 
 def process_single_example(example, max_seq_length, encoder):
     x1 = example.x1
     x2 = example.x2
-    xx2 = example.xx2
-    y = example.y
-    yy = example.yy
+    x3 = example.x3
+    x4 = example.x4
 
-    y = _truncate_seqs(x1, x2, xx2, y, max_seq_length-2, encoder)
-    if yy is not None:
-        yy = _truncate_seqs(x1, x2, xx2, yy, max_seq_length-2, encoder)
+    x4 = _truncate_seqs(x1, x2, x3, x4, max_seq_length-2, encoder)
+    # if yy is not None:
+    #     yy = _truncate_seqs(x1, x2, xx2, yy, max_seq_length-2, encoder)
 
     mask_text = 'Unknown .'
     special = encoder.encoder['<|endoftext|>']
 
     x1_ids = encoder.encode(x1)
 
-    x1x2 = x1 + ' ' + x2 #FT prefix
+    ### Frame2Story
+    x1x2 = x1 + ' | ' + x2
     x1x2_ids = encoder.encode(x1x2)
 
-    x1x2y = x1x2 + ' ' + y #FT
-    x1x2y_ids = encoder.encode(x1x2y)
+    x1x2x4 = x1x2 + ' <|endofframe|> ' + x4
+    x1x2x4_ids = encoder.encode(x1x2x4)
 
-    x1xx2 = x1 + ' ' + xx2 #Counter
-    x1xx2_ids = encoder.encode(x1xx2)
+    ### Event2Story
+    x1x3 = x1 + ' | ' + x3
+    x1x3_ids = encoder.encode(x1x3)
+
+    x1x3x4 = x1x3 + ' <|endofevent|> ' + x4
+    x1x3x4_ids = encoder.encode(x1x3x4)
+
+
+    ### Frame2Event
+    x2x3 = x2 + ' <|endofframe|> ' + x3
+    x2x3_ids = encoder.encode(x2x3)
 
     #x1x2yx1xx2_ids = encoder.encode(x1x2y + ' ') + [special] + encoder.encode(' ' + x1xx2 + ' ')
     #x1x2yx1m_ids = encoder.encode(x1x2y + ' ') + [special] + encoder.encode(' ' + x1 + ' ' + mask_text + ' ')
     #x1x2yx1my_ids = encoder.encode(x1x2y + ' ') + [special] + encoder.encode(' ' + x1 + ' ' + mask_text + ' ' + y + ' ')
-
-    x1x2yx1xx2_ids = encoder.encode(x1x2y + ' | ' + x1xx2)  #sup prefix
-    x1x2yx1m_ids = encoder.encode(x1x2y + ' | ' + x1 + ' ' + mask_text)  #recons prefix
-    x1x2yx1my_ids = encoder.encode(x1x2y + ' | ' + x1 + ' ' + mask_text + ' ' + y) #recons
+    x1x2yx1xx2_ids = encoder.encode(x1x2y + ' | ' + x1xx2)
+    x1x2yx1m_ids = encoder.encode(x1x2y + ' | ' + x1 + ' ' + mask_text)
+    x1x2yx1my_ids = encoder.encode(x1x2y + ' | ' + x1 + ' ' + mask_text + ' ' + y)
 
     #_truncate_seqs(tokens_x1, tokens_x2, tokens_xx2, tokens_y, max_seq_length)
     #if example.yy is not None:
     #    _truncate_seqs(tokens_x1, tokens_x2, tokens_xx2, tokens_yy, max_seq_length)
 
-    if example.yy is not None:
-        #x1x2yx1xx2yy_ids = encoder.encode(x1x2y + ' ') + [special] + encoder.encode(' ' + x1xx2 + ' ' + yy + ' ')
-        x1x2yx1xx2yy_ids = encoder.encode(x1x2y + ' | ' + x1xx2 + ' ' + yy) # sup
-    else:
-        x1x2yx1xx2yy_ids = [special for _ in range(max_seq_length)]
+    # if example.yy is not None:
+    #     #x1x2yx1xx2yy_ids = encoder.encode(x1x2y + ' ') + [special] + encoder.encode(' ' + x1xx2 + ' ' + yy + ' ')
+    #     x1x2yx1xx2yy_ids = encoder.encode(x1x2y + ' | ' + x1xx2 + ' ' + yy)
+    # else:
+    #     x1x2yx1xx2yy_ids = [special for _ in range(max_seq_length)]
 
-    assert len(x1x2yx1xx2_ids) < max_seq_length
-    if len(x1x2yx1my_ids) >= max_seq_length:
-        print(x1)
-        print(x2)
-        print(y)
-        print(len(x1x2yx1my_ids))
-        print(max_seq_length)
-        assert len(x1x2yx1my_ids) < max_seq_length
+    # assert len(x1x2yx1xx2_ids) < max_seq_length
+    # if len(x1x2yx1my_ids) >= max_seq_length:
+    #     print(x1)
+    #     print(x2)
+    #     print(y)
+    #     print(len(x1x2yx1my_ids))
+    #     print(max_seq_length)
+    #     assert len(x1x2yx1my_ids) < max_seq_length
 
     len_x1 = len(x1_ids)
     len_x1x2 = len(x1x2_ids)
-    len_x1x2y = len(x1x2y_ids)
-    len_x1xx2 = len(x1xx2_ids)
-    len_x1x2yx1xx2 = len(x1x2yx1xx2_ids)
-    len_x1x2yx1my = len(x1x2yx1my_ids)
-    len_x1x2yx1m = len(x1x2yx1m_ids)
-    len_x1x2yx1xx2yy = len(x1x2yx1xx2yy_ids)
+    len_x1x2x4 = len(x1x2x4_ids)
+    len_x1x3 = len(x1x3_ids)
+    len_x1x3x4 = len(x1x3x4_ids)
+    len_x2x3 = len(x2x3_ids)
+    # len_x1x2yx1m = len(x1x2yx1m_ids)
+    # len_x1x2yx1xx2yy = len(x1x2yx1xx2yy_ids)
 
     while len(x1_ids) < max_seq_length:
         x1_ids.append(special)
     while len(x1x2_ids) < max_seq_length:
         x1x2_ids.append(special)
-    while len(x1x2y_ids) < max_seq_length:
-        x1x2y_ids.append(special)
-    while len(x1xx2_ids) < max_seq_length:
-        x1xx2_ids.append(special)
-    while len(x1x2yx1xx2_ids) < max_seq_length:
-        x1x2yx1xx2_ids.append(special)
-    while len(x1x2yx1my_ids) < max_seq_length:
-        x1x2yx1my_ids.append(special)
-    while len(x1x2yx1xx2yy_ids) < max_seq_length:
-        x1x2yx1xx2yy_ids.append(special)
+    while len(x1x2x4_ids) < max_seq_length:
+        x1x2x4_ids.append(special)
+    while len(x1x3_ids) < max_seq_length:
+        x1x3_ids.append(special)
+    while len(x1x3x4_ids) < max_seq_length:
+        x1x3x4_ids.append(special)
+    while len(x2x3_ids) < max_seq_length:
+        x2x3_ids.append(special)
+    # while len(x1x2yx1xx2yy_ids) < max_seq_length:
+    #     x1x2yx1xx2yy_ids.append(special)
 
     feature = {
         "x1_ids": x1_ids,
         "x1_len": len_x1,
         "x1x2_ids": x1x2_ids,
         "x1x2_len": len_x1x2,
-        "x1x2y_ids": x1x2y_ids,
-        "x1x2y_len": len_x1x2y,
-        "x1xx2_ids": x1xx2_ids,
-        "x1xx2_len": len_x1xx2,
-        "x1x2yx1xx2_ids": x1x2yx1xx2_ids,
-        "x1x2yx1xx2_len": len_x1x2yx1xx2,
-        "x1x2yx1my_ids": x1x2yx1my_ids,
-        "x1x2yx1my_len": len_x1x2yx1my,
-        "x1x2yx1m_len": len_x1x2yx1m,
-        "x1x2yx1xx2yy_ids": x1x2yx1xx2yy_ids,
-        "x1x2yx1xx2yy_len": len_x1x2yx1xx2yy
+        "x1x2x4_ids": x1x2x4_ids,
+        "x1x2x4_len": len_x1x2x4,
+        "x1x3_ids": x1x3_ids,
+        "x1x3_len": len_x1x3,
+        "x1x3x4_ids": x1x3x4_ids,
+        "x1x3x4_len": len_x1x3x4,
+        "x2x3_ids": x2x3_ids,
+        "x2x3_len": len_x2x3,
+        # "x1x2yx1m_len": len_x1x2yx1m,
+        # "x1x2yx1xx2yy_ids": x1x2yx1xx2yy_ids,
+        # "x1x2yx1xx2yy_len": len_x1x2yx1xx2yy
     }
 
     return feature
@@ -183,14 +190,14 @@ def read_raw_data_v2(path, mode):
 
     all_x1 = _read_file(_get_fn('x1'))
     all_x2 = _read_file(_get_fn('x2'))
-    all_xx2 = _read_file(_get_fn('xx2'))
-    all_y = _read_file(_get_fn('y'))
+    all_x3 = _read_file(_get_fn('x3'))
+    all_x4 = _read_file(_get_fn('x4'))
 
-    yy_fn = _get_fn('yy')
-    if os.path.isfile(yy_fn):
-        all_yy = _read_file(yy_fn)
-    else:
-        all_yy = [None] * len(all_x1)
+    # yy_fn = _get_fn('yy')
+    # if os.path.isfile(yy_fn):
+    #     all_yy = _read_file(yy_fn)
+    # else:
+    #     all_yy = [None] * len(all_x1)
 
     print('#examples: %d' % len(all_x1))
 
@@ -198,10 +205,11 @@ def read_raw_data_v2(path, mode):
         InputExample(
             x1=x1,
             x2=x2,
-            xx2=xx2,
-            y=y,
-            yy=yy)
-        for x1, x2, xx2, y, yy in zip(all_x1, all_x2, all_xx2, all_y, all_yy)
+            x3=xx2,
+            x4=y,
+            #yy=yy
+        )
+        for x1, x2, x3, y in zip(all_x1, all_x2, all_x3, all_x4)
     ]
 
 
