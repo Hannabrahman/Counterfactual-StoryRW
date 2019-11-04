@@ -24,7 +24,7 @@ import tensorflow as tf
 
 class InputExample(object):
 
-    def __init__(self, x1, x2, xx2, y, yy=None):
+    def __init__(self, x1, x2, x3, x4, yy=None):
         self.x1 = x1
         self.x2 = x2
         self.x3 = x3
@@ -71,7 +71,7 @@ def _truncate_seqs(x1, x2, x3, x4, max_length, encoder):
             break
         x4_ = x4.split()
         x4 = ' '.join(x4_[:-1])
-    return y
+    return x4
 
 
 def process_single_example(example, max_seq_length, encoder):
@@ -111,9 +111,9 @@ def process_single_example(example, max_seq_length, encoder):
     #x1x2yx1xx2_ids = encoder.encode(x1x2y + ' ') + [special] + encoder.encode(' ' + x1xx2 + ' ')
     #x1x2yx1m_ids = encoder.encode(x1x2y + ' ') + [special] + encoder.encode(' ' + x1 + ' ' + mask_text + ' ')
     #x1x2yx1my_ids = encoder.encode(x1x2y + ' ') + [special] + encoder.encode(' ' + x1 + ' ' + mask_text + ' ' + y + ' ')
-    x1x2yx1xx2_ids = encoder.encode(x1x2y + ' | ' + x1xx2)
-    x1x2yx1m_ids = encoder.encode(x1x2y + ' | ' + x1 + ' ' + mask_text)
-    x1x2yx1my_ids = encoder.encode(x1x2y + ' | ' + x1 + ' ' + mask_text + ' ' + y)
+    #x1x2yx1xx2_ids = encoder.encode(x1x2y + ' | ' + x1xx2)
+    #x1x2yx1m_ids = encoder.encode(x1x2y + ' | ' + x1 + ' ' + mask_text)
+    #x1x2yx1my_ids = encoder.encode(x1x2y + ' | ' + x1 + ' ' + mask_text + ' ' + y)
 
     #_truncate_seqs(tokens_x1, tokens_x2, tokens_xx2, tokens_y, max_seq_length)
     #if example.yy is not None:
@@ -205,11 +205,11 @@ def read_raw_data_v2(path, mode):
         InputExample(
             x1=x1,
             x2=x2,
-            x3=xx2,
-            x4=y,
+            x3=x3,
+            x4=x4,
             #yy=yy
         )
-        for x1, x2, x3, y in zip(all_x1, all_x2, all_x3, all_x4)
+        for x1, x2, x3, x4 in zip(all_x1, all_x2, all_x3, all_x4)
     ]
 
 
@@ -236,17 +236,32 @@ def file_based_convert_examples_to_features_v2(
         features["x1_len"] = _create_int_feature([fea["x1_len"]])
         features["x1x2_ids"] = _create_int_feature(fea["x1x2_ids"])
         features["x1x2_len"] = _create_int_feature([fea["x1x2_len"]])
-        features["x1x2y_ids"] = _create_int_feature(fea["x1x2y_ids"])
-        features["x1x2y_len"] = _create_int_feature([fea["x1x2y_len"]])
-        features["x1xx2_ids"] = _create_int_feature(fea["x1xx2_ids"])
-        features["x1xx2_len"] = _create_int_feature([fea["x1xx2_len"]])
-        features["x1x2yx1xx2_ids"] = _create_int_feature(fea["x1x2yx1xx2_ids"])
-        features["x1x2yx1xx2_len"] = _create_int_feature([fea["x1x2yx1xx2_len"]])
-        features["x1x2yx1my_ids"] = _create_int_feature(fea["x1x2yx1my_ids"])
-        features["x1x2yx1my_len"] = _create_int_feature([fea["x1x2yx1my_len"]])
-        features["x1x2yx1m_len"] = _create_int_feature([fea["x1x2yx1m_len"]])
-        features["x1x2yx1xx2yy_ids"] = _create_int_feature(fea["x1x2yx1xx2yy_ids"])
-        features["x1x2yx1xx2yy_len"] = _create_int_feature([fea["x1x2yx1xx2yy_len"]])
+        features["x1x2x4_ids"] = _create_int_feature(fea["x1x2x4_ids"])
+        features["x1x2x4_len"] = _create_int_feature([fea["x1x2x4_len"]])
+        features["x1x3_ids"] = _create_int_feature(fea["x1x3_ids"])
+        features["x1x3_len"] = _create_int_feature([fea["x1x3_len"]])
+        features["x1x3x4_ids"] = _create_int_feature(fea["x1x3x4_ids"])
+        features["x1x3x4_len"] = _create_int_feature([fea["x1x3x4_len"]])
+        features["x2x3_ids"] = _create_int_feature(fea["x2x3_ids"])
+        features["x2x3_len"] = _create_int_feature([fea["x2x3_len"]])
+
+
+#        features = collections.OrderedDict()
+#        features["x1_ids"] = _create_int_feature(fea["x1_ids"])
+#        features["x1_len"] = _create_int_feature([fea["x1_len"]])
+#        features["x1x2_ids"] = _create_int_feature(fea["x1x2_ids"])
+#        features["x1x2_len"] = _create_int_feature([fea["x1x2_len"]])
+#        features["x1x2y_ids"] = _create_int_feature(fea["x1x2y_ids"])
+#        features["x1x2y_len"] = _create_int_feature([fea["x1x2y_len"]])
+#        features["x1xx2_ids"] = _create_int_feature(fea["x1xx2_ids"])
+#        features["x1xx2_len"] = _create_int_feature([fea["x1xx2_len"]])
+#        features["x1x2yx1xx2_ids"] = _create_int_feature(fea["x1x2yx1xx2_ids"])
+#        features["x1x2yx1xx2_len"] = _create_int_feature([fea["x1x2yx1xx2_len"]])
+#        features["x1x2yx1my_ids"] = _create_int_feature(fea["x1x2yx1my_ids"])
+#        features["x1x2yx1my_len"] = _create_int_feature([fea["x1x2yx1my_len"]])
+#        features["x1x2yx1m_len"] = _create_int_feature([fea["x1x2yx1m_len"]])
+#        features["x1x2yx1xx2yy_ids"] = _create_int_feature(fea["x1x2yx1xx2yy_ids"])
+#        features["x1x2yx1xx2yy_len"] = _create_int_feature([fea["x1x2yx1xx2yy_len"]])
 
         tf_example = tf.train.Example(
             features=tf.train.Features(feature=features))
