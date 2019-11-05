@@ -461,7 +461,7 @@ def main(_):
     saver_best = tf.train.Saver(max_to_keep=1)
     dev_best = {
         'loss': 1e8, 'loss_fine': 1e8, 'loss_frame': 1e8,
-        'loss_event': 1e8, 'loss_ev2st': 1e8, 'loss_fr2sr': 1e8, 'loss_fr2ev': 1e8}
+        'loss_event': 1e8, 'loss_ev2st': 1e8, 'loss_fr2st': 1e8, 'loss_fr2ev': 1e8}
 
 
     def _log_losses(losses, step=None):
