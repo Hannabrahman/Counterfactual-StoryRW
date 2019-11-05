@@ -360,10 +360,10 @@ def main(_):
         soft_len = prefix_len + post_len
         return D.compute_loss(soft_ids, soft_len), soft_ids, soft_len
 
-    loss_d_x2, _, _ = _get_d_loss(x1x2_ids, yy_soft_ids, x1x2_len, yy_soft_len) # to maximize
-    loss_d_xx2, x1xx2yy_soft_ids, x1xx2yy_len = _get_d_loss(x1xx2_ids, yy_soft_ids, x1xx2_len, yy_soft_len) # to minimize
-
-    x1xx2yy_ids = tf.argmax(x1xx2yy_soft_ids, axis=-1)
+    # loss_d_x2, _, _ = _get_d_loss(x1x2_ids, yy_soft_ids, x1x2_len, yy_soft_len) # to maximize
+    # loss_d_xx2, x1xx2yy_soft_ids, x1xx2yy_len = _get_d_loss(x1xx2_ids, yy_soft_ids, x1xx2_len, yy_soft_len) # to minimize
+    #
+    # x1xx2yy_ids = tf.argmax(x1xx2yy_soft_ids, axis=-1)  # was used in train epoch 'if initial'
 
     if not FLAGS.supervised:
         loss = config_train.w_fine * loss_fine \
@@ -461,7 +461,7 @@ def main(_):
     saver_best = tf.train.Saver(max_to_keep=1)
     dev_best = {
         'loss': 1e8, 'loss_fine': 1e8, 'loss_frame': 1e8,
-        'loss_event': 1e8, 'loss_ev2st': 1e8, 'loss_fr2sr': 1e8, 'loss_fr2ev': 1e8}
+        'loss_event': 1e8, 'loss_ev2st': 1e8, 'loss_fr2st': 1e8, 'loss_fr2ev': 1e8}
 
 
     def _log_losses(losses, step=None):
