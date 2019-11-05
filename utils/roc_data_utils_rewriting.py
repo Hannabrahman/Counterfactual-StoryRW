@@ -64,9 +64,10 @@ class InputFeatures(object):  # not used in this project!
 #        #tokens_xx2.pop()
 #        tokens_y.pop()
 
-def _truncate_seqs(x1, x2, x3, x4, max_length, encoder):
+def _truncate_seqs(x1, x3, x4, max_length, encoder):
     while True:
-        ids = encoder.encode(x1 + ' | ' + x3 + ' | ' + x4 + ' ')
+        ids = encoder.encode(x1 + ' | ' + x3 + ' <|endofevent|> ' + x4 + ' ')
+        # print("***", len(ids))
         if len(ids) <= max_length:
             break
         x4_ = x4.split()
@@ -80,7 +81,7 @@ def process_single_example(example, max_seq_length, encoder):
     x3 = example.x3
     x4 = example.x4
 
-    x4 = _truncate_seqs(x1, x2, x3, x4, max_seq_length-2, encoder)
+    x4 = _truncate_seqs(x1, x3, x4, max_seq_length-2, encoder)
     # if yy is not None:
     #     yy = _truncate_seqs(x1, x2, xx2, yy, max_seq_length-2, encoder)
 
@@ -88,6 +89,10 @@ def process_single_example(example, max_seq_length, encoder):
     special = encoder.encoder['<|endoftext|>']
 
     x1_ids = encoder.encode(x1)
+
+    ### Title2Story  ----> Finetune
+    x1x4 = x1 + ' | ' + x4
+    x1x4_ids = encoder.encode(x1x4)
 
     ### Frame2Story
     x1x2 = x1 + ' | ' + x2
@@ -105,8 +110,8 @@ def process_single_example(example, max_seq_length, encoder):
 
 
     ### Frame2Event
-    x2x3 = x2 + ' <|endofframe|> ' + x3
-    x2x3_ids = encoder.encode(x2x3)
+    x1x2x3 = x1x2 + ' <|endofframe|> ' + x3
+    x1x2x3_ids = encoder.encode(x1x2x3)
 
     #x1x2yx1xx2_ids = encoder.encode(x1x2y + ' ') + [special] + encoder.encode(' ' + x1xx2 + ' ')
     #x1x2yx1m_ids = encoder.encode(x1x2y + ' ') + [special] + encoder.encode(' ' + x1 + ' ' + mask_text + ' ')
@@ -135,16 +140,19 @@ def process_single_example(example, max_seq_length, encoder):
     #     assert len(x1x2yx1my_ids) < max_seq_length
 
     len_x1 = len(x1_ids)
+    len_x1x4 = len(x1x4_ids)
     len_x1x2 = len(x1x2_ids)
     len_x1x2x4 = len(x1x2x4_ids)
     len_x1x3 = len(x1x3_ids)
     len_x1x3x4 = len(x1x3x4_ids)
-    len_x2x3 = len(x2x3_ids)
+    len_x1x2x3 = len(x1x2x3_ids)
     # len_x1x2yx1m = len(x1x2yx1m_ids)
     # len_x1x2yx1xx2yy = len(x1x2yx1xx2yy_ids)
 
     while len(x1_ids) < max_seq_length:
         x1_ids.append(special)
+    while len(x1x4_ids) < max_seq_length:
+        x1x4_ids.append(special)
     while len(x1x2_ids) < max_seq_length:
         x1x2_ids.append(special)
     while len(x1x2x4_ids) < max_seq_length:
@@ -153,14 +161,16 @@ def process_single_example(example, max_seq_length, encoder):
         x1x3_ids.append(special)
     while len(x1x3x4_ids) < max_seq_length:
         x1x3x4_ids.append(special)
-    while len(x2x3_ids) < max_seq_length:
-        x2x3_ids.append(special)
+    while len(x1x2x3_ids) < max_seq_length:
+        x1x2x3_ids.append(special)
     # while len(x1x2yx1xx2yy_ids) < max_seq_length:
     #     x1x2yx1xx2yy_ids.append(special)
 
     feature = {
         "x1_ids": x1_ids,
         "x1_len": len_x1,
+        "x1x4_ids": x1x4_ids,
+        "x1x4_len": len_x1x4,
         "x1x2_ids": x1x2_ids,
         "x1x2_len": len_x1x2,
         "x1x2x4_ids": x1x2x4_ids,
@@ -169,8 +179,8 @@ def process_single_example(example, max_seq_length, encoder):
         "x1x3_len": len_x1x3,
         "x1x3x4_ids": x1x3x4_ids,
         "x1x3x4_len": len_x1x3x4,
-        "x2x3_ids": x2x3_ids,
-        "x2x3_len": len_x2x3,
+        "x1x2x3_ids": x1x2x3_ids,
+        "x1x2x3_len": len_x1x2x3,
         # "x1x2yx1m_len": len_x1x2yx1m,
         # "x1x2yx1xx2yy_ids": x1x2yx1xx2yy_ids,
         # "x1x2yx1xx2yy_len": len_x1x2yx1xx2yy
@@ -219,13 +229,15 @@ def file_based_convert_examples_to_features_v2(
 
     writer = tf.python_io.TFRecordWriter(output_file)
 
-    for (_, example) in enumerate(examples):
-
+    for (i, example) in enumerate(examples):
+        # print(i, example.x3)
+        if i % 5000 == 0:
+            print("{} of {} is processed!".format(i, len(examples)))
         fea = process_single_example(
             example, max_seq_length, encoder)
 
-        if verbose:
-            print(fea["x1x2yx1xx2_len"])
+        # if verbose:
+        #     print(fea["x1x2yx1xx2_len"])
 
         def _create_int_feature(values):
             return tf.train.Feature(
@@ -234,6 +246,8 @@ def file_based_convert_examples_to_features_v2(
         features = collections.OrderedDict()
         features["x1_ids"] = _create_int_feature(fea["x1_ids"])
         features["x1_len"] = _create_int_feature([fea["x1_len"]])
+        features["x1x4_ids"] = _create_int_feature(fea["x1x4_ids"])
+        features["x1x4_len"] = _create_int_feature([fea["x1x4_len"]])
         features["x1x2_ids"] = _create_int_feature(fea["x1x2_ids"])
         features["x1x2_len"] = _create_int_feature([fea["x1x2_len"]])
         features["x1x2x4_ids"] = _create_int_feature(fea["x1x2x4_ids"])
@@ -242,8 +256,8 @@ def file_based_convert_examples_to_features_v2(
         features["x1x3_len"] = _create_int_feature([fea["x1x3_len"]])
         features["x1x3x4_ids"] = _create_int_feature(fea["x1x3x4_ids"])
         features["x1x3x4_len"] = _create_int_feature([fea["x1x3x4_len"]])
-        features["x2x3_ids"] = _create_int_feature(fea["x2x3_ids"])
-        features["x2x3_len"] = _create_int_feature([fea["x2x3_len"]])
+        features["x1x2x3_ids"] = _create_int_feature(fea["x1x2x3_ids"])
+        features["x1x2x3_len"] = _create_int_feature([fea["x1x2x3_len"]])
 
 
 #        features = collections.OrderedDict()
