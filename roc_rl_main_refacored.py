@@ -31,7 +31,7 @@ from discriminator import Discriminator
 # import torch
 # from pathlib import Path
 # from fast_bert.prediction import BertClassificationPredictor
-from Reinforcement.rewards import get_reward, format_generated_stories_for_clf
+from Reinforcement.rewards import get_reward, format_generated_text_for_clf
 
 # pylint: disable=invalid-name, too-many-locals, too-many-statements, no-member
 # pylint: disable=invalid-name, too-many-locals, too-many-statements, no-member
@@ -83,11 +83,6 @@ flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
 flags.DEFINE_bool("do_test", False, "Whether to run test on the test set.")
 flags.DEFINE_bool("distributed", False, "Whether to run in distributed mode.")
 flags.DEFINE_bool("finetune", False, "Whether to test on finetune mode.")
-flags.DEFINE_bool("frame", False, "Whether to test on frame lm mode.")
-flags.DEFINE_bool("event", False, "Whether to run on event lm mode.")
-flags.DEFINE_bool("event2story", False, "Whether to test on event to story mode.")
-flags.DEFINE_bool("frame2story", False, "Whether to test on frame to story mode.")
-flags.DEFINE_bool("frame2event", False, "Whether to test on frame to event mode.")
 flags.DEFINE_bool("supervised", False, "Whether supervised training.")
 flags.DEFINE_bool("sc_rl", False, "Whether to train with self-critical RL")
 
@@ -186,18 +181,6 @@ def main(_):
         output_layer=output_layer,
         hparams=gpt2_config.decoder)
 
-    # def _get_rl_loss():
-    #
-    #     reward = get_self_critical_reward(proc, greedy_ids, greedy_ids_len, true_score, ids, ids_len, config_train.train_batch_size)
-    #     mask = np.ones_like(sampleLogprobs, dtype=float)
-    #     padded_indices = np.arange(mask[1]) >= ids_len[:, None] # mask all probs which are pad indices
-    #     mask[padded_indices] = 0
-    #     loss_rl = - sampleLogprobs * reward * mask # shape [bs, sl]
-    #
-    #     loss_rl = np.sum(loss_rl) / np.sum(mask) # loss per token
-    #
-    #     return loss_rl
-
     def _embedding_fn(ids, times):
         return word_embedder(ids) + pos_embedder(times)
 
@@ -272,7 +255,7 @@ def main(_):
 
     end_token = proc.encoder['<|endoftext|>']
     # For RL fine-tuning
-    def _get_sample_story(context_ids, context_len):
+    def _get_sample_text(context_ids, context_len):
         sample_output, sample_len = decoder(
             decoding_strategy='infer_sample',
             embedding = _embedding_fn,
@@ -329,7 +312,7 @@ def main(_):
         return batch_loss
 
 
-    def _get_greedy_story(context_ids, context_len):
+    def _get_greedy_text(context_ids, context_len):
 
         greedy_res, greedy_len = decoder(
             decoding_strategy='infer_greedy',
@@ -353,62 +336,19 @@ def main(_):
 
     loss_fine = _get_recon_loss(x1x4_ids, x1x4_len, x1_len)
 
-    ## ROC Loss-2: frame lm loss
-    # x1x2_ids = tf.placeholder(tf.int32, shape=[None, None], name='x1x2_ids')
-    # x1x2_len = tf.placeholder(tf.int32, shape=[None], name='x1x2_len')
-    #
-    # loss_frame = _get_recon_loss(x1x2_ids, x1x2_len, x1_len)
-
-    ## ROC Loss-3: event lm loss
-    # x1x3_ids = tf.placeholder(tf.int32, shape=[None, None], name='x1x3_ids')
-    # x1x3_len = tf.placeholder(tf.int32, shape=[None], name='x1x3_len')
-    #
-    # loss_event = _get_recon_loss(x1x3_ids, x1x3_len, x1_len)
-
-    # ROC Loss-4: event2story loss
-    # x1x3x4_ids = tf.placeholder(tf.int32, shape=[None, None], name='x1x3x4_ids')
-    # x1x3x4_len = tf.placeholder(tf.int32, shape=[None], name='x1x3x4_len')
-    #
-    # loss_ev2st = _get_recon_loss(x1x3x4_ids, x1x3x4_len, x1x3_len)
-
-    ## ROC Loss-5: frame2story loss
-    # x1x2x4_ids = tf.placeholder(tf.int32, shape=[None, None], name='x1x2x4_ids')
-    # x1x2x4_len = tf.placeholder(tf.int32, shape=[None], name='x1x2x4_len')
-    # # x1x2_len = tf.placeholder(tf.int32, shape=[None], name='x1x2_len')
-    #
-    # loss_fr2st, fr2st_greedy_res = _get_recon_loss(x1x2x4_ids, x1x2x4_len, x1x2_len)
-
-    ## ROC Loss-6: frame2event loss
-    # x1x2x3_ids = tf.placeholder(tf.int32, shape=[None, None], name='x1x2x3_ids')
-    # x1x2x3_len = tf.placeholder(tf.int32, shape=[None], name='x1x2x3_len')
-    #
-    # loss_fr2ev = _get_recon_loss(x1x2x3_ids, x1x2x3_len, x1x2_len)
-
 
     ### RL Loss-1: fine-tune
     # x4_emo = tf.placeholder(tf.float64, shape=[None, None], name='x4_emo') # [bs, 3 *4]
     x1_ids = tf.placeholder(tf.int32, shape=[None, None], name='x1_ids')
     reward = tf.placeholder_with_default(tf.ones([batch_size]), shape=(config_train.train_batch_size,), name="reward")
-    # sampled_story = tf.placeholder_with_default(tf.zeros([batch_size, max_decoding_length], dtype=tf.int32),
-    #                                                (batch_size, max_decoding_length), name="sampled_story")
-    # sample_len = tf.placeholder_with_default(tf.fill([batch_size], max_decoding_length),
-    #                                                (batch_size), name="sample_len")
-    # greedy_len = tf.placeholder_with_default(tf.fill([batch_size], max_decoding_length),
-    #                                                (batch_size), name="greedy_len")
 
-    symbols_output, symbols_len = _get_sample_story(x1_ids, x1_len)
+
+    symbols_output, symbols_len = _get_sample_text(x1_ids, x1_len)
     symbols_rl, len_rl = _get_sample_rolled(symbols_output, symbols_len, x1_len)
-    symbols_gr, len_gr = _get_greedy_story(x1_ids, x1_len)
+    symbols_gr, len_gr = _get_greedy_text(x1_ids, x1_len)
 
     batch_loss_rl = compute_batch_loss(symbols_output, symbols_len, x1_len)
     rl_loss_fine = tf.reduce_mean(batch_loss_rl * reward)
-
-
-    ### RL Loss-2: event2story
-    # rl_loss_ev2st = _get_rl_loss(x1x3_ids, x1x3_len, x4_emo)
-
-    ### RL Loss-3: frame2story
-    # rl_loss_ev2st = _get_rl_loss(x1x2_ids, x1x2_len, fr2st_greedy_res, x4_scores, x1x2x4_len)
 
 
     ## Loss-(3): contrastive loss
@@ -419,24 +359,7 @@ def main(_):
     # generate soft yy
     def _soft_embedding_fn(soft_ids, times):
         return word_embedder(soft_ids=soft_ids) + pos_embedder(times)
-    # start_tokens = x1x2yx1xx2_ids[:, 0]
 
-    # helper_soft = tx.modules.SoftmaxEmbeddingHelper(
-    #     embedding=_soft_embedding_fn,
-    #     start_tokens=start_tokens,
-    #     end_token=end_token,
-    #     tau=tau,
-    #     embedding_size=vocab_size)
-    #
-    # outputs_soft, len_soft = decoder(
-    #     context=tf.one_hot(x1x2yx1xx2_ids, depth=vocab_size),
-    #     context_sequence_length=x1x2yx1xx2_len,
-    #     max_decoding_length=max_decoding_length,
-    #     helper=helper_soft)
-    # yy_soft_ids = tx.utils.varlength_roll(
-    #     outputs_soft.sample_id, -x1x2yx1xx2_len)
-    # yy_soft_len = len_soft - x1x2yx1xx2_len
-    # yy_soft_ids = yy_soft_ids[:, :tf.reduce_max(yy_soft_len), :]
 
     def _get_d_loss(prefix_ids, post_soft_ids, prefix_len, post_len):
         onehot_prefix_ids = tf.one_hot(prefix_ids, depth=vocab_size)
@@ -445,64 +368,26 @@ def main(_):
         soft_len = prefix_len + post_len
         return D.compute_loss(soft_ids, soft_len), soft_ids, soft_len
 
-    # loss_d_x2, _, _ = _get_d_loss(x1x2_ids, yy_soft_ids, x1x2_len, yy_soft_len) # to maximize
-    # loss_d_xx2, x1xx2yy_soft_ids, x1xx2yy_len = _get_d_loss(x1xx2_ids, yy_soft_ids, x1xx2_len, yy_soft_len) # to minimize
-    #
-    # x1xx2yy_ids = tf.argmax(x1xx2yy_soft_ids, axis=-1)  # was used in train epoch 'if initial'
-
-    # rl_loss_fine = tf.stop_gradient(rl_loss_fine)
-
 
     if not FLAGS.supervised:
         if not FLAGS.sc_rl:
-            loss = config_train.w_fine * loss_fine \
-                   # + config_train.w_ev2st * loss_ev2st \
-                # + config_train.w_event * loss_event \
-
-                # + config_train.w_frame * loss_frame \
-                # + config_train.w_fr2st * loss_fr2st \
-                # + config_train.w_fr2ev * loss_fr2ev
+            loss = config_train.w_fine * loss_fine
 
             loss_dict = {
                 'loss': loss,
-                # 'loss_bt': tf.constant(0), #config_train.w_bt * loss_bt,
-                # 'loss_d_xx2': tf.constant(0), #config_train.w_d_xx2 * loss_d_xx2,
-                # 'loss_d_x2': tf.constant(0), #config_train.w_d_x2 * loss_d_x2,
                 'loss_fine': config_train.w_fine * loss_fine,
-                # 'loss_frame': config_train.w_frame * loss_frame,
-                # 'loss_event': config_train.w_event * loss_event,
-                # 'loss_ev2st': config_train.w_ev2st * loss_ev2st,
-                # 'loss_fr2st': config_train.w_fr2st * loss_fr2st,
-                # 'loss_fr2ev': config_train.w_fr2ev * loss_fr2ev,
+
             }
 
-        else:
-            loss = config_train.w_rl * (config_train.w_fine_rl * rl_loss_fine) # (1 - config_train.w_rl) * config_train.w_fine * loss_fine +
-                # + config_train.w_event * loss_event
-                # + config_train.w_ev2st * loss_ev2st
-                # + config_train.w_frame * loss_frame
-                # + config_train.w_fr2st * loss_fr2st
-                # + config_train.w_fr2ev * loss_fr2ev
-                #                               ) \
-                   # + config_train.w_rl * (config_train.w_fine_rl * rl_loss_fine)
-                # + config_train.w_ev2st_rl * rl_loss_ev2st
-                # + config_train.w_fr2st_rl * rl_loss_fr2st
+        else:  # train a self-critical 
+            loss = (1 - config_train.w_rl) * config_train.w_fine * loss_fine + config_train.w_rl * rl_loss_fine 
 
 
             loss_dict = {
                 'loss': loss,
-                # 'loss_bt': tf.constant(0), #config_train.w_bt * loss_bt,
-                # 'loss_d_xx2': tf.constant(0), #config_train.w_d_xx2 * loss_d_xx2,
-                # 'loss_d_x2': tf.constant(0), #config_train.w_d_x2 * loss_d_x2,
-                # 'loss_fine': (1 - config_train.w_rl) * config_train.w_fine * loss_fine,
-                # 'loss_frame': config_train.w_frame * loss_frame,
-                # 'loss_event': (1 - config_train.w_rl) * config_train.w_event * loss_event,
-                # 'loss_ev2st': (1 - config_train.w_rl) * config_train.w_ev2st * loss_ev2st,
-                # 'loss_fr2st': config_train.w_fr2st * loss_fr2st,
-                # 'loss_fr2ev': config_train.w_fr2ev * loss_fr2ev,
-                'rl_loss_fine': config_train.w_rl * config_train.w_fine_rl * rl_loss_fine,
-                # 'rl_loss_ev2st': config_train.w_rl * config_train.w_ev2st_rl * rl_loss_ev2st,
-                # 'rl_loss_fr2st': config_train.w_rl * config_train.w_fr2st_rl * rl_loss_fr2st
+                'loss_fine': (1 - config_train.w_rl) * config_train.w_fine * loss_fine,
+                'rl_loss_fine': config_train.w_rl * rl_loss_fine,
+
             }
     else:
         loss = loss_yy
@@ -541,16 +426,7 @@ def main(_):
 
 
     x4_ids_fine, x4_len_fine = _infer('x1')
-    # x2_ids_fr, x2_len_fr = _infer('x1')
-    # x3_ids_ev, x3_len_ev = _infer('x1')
-    # x4_ids_ev2st, x4_len_ev2st = _infer('x1x3')
-    # x4_ids_fr2st, x4_len_fr2st = _infer('x1x2')
-    # x3_ids_fr2ev, x3_len_fr2ev = _infer('x1x2')
 
-
-    # yy_ids, yy_len = _infer('x1x2yx1xx2') # sup
-    # yy_ids_fine, yy_len_fine = _infer('x1xx2') # used in fine-tune
-    # yy_ids_roc, yy_len_roc = _infer('x1x2') # used in fine-tune
 
 
     ## Optimization
@@ -577,50 +453,19 @@ def main(_):
     saver = tf.train.Saver()
     saver_best = tf.train.Saver(max_to_keep=1)
     dev_best = {
-        'loss': 1e8, 'loss_fine': 1e8, 'loss_frame': 1e8,
-        'loss_event': 1e8, 'loss_ev2st': 1e8, 'loss_fr2st': 1e8, 'loss_fr2ev': 1e8, 'rl_loss_fine': 1e8}
+        'loss': 1e8, 'loss_fine': 1e8, 'rl_loss_fine': 1e8}
 
 
     def _log_losses(losses, step=None):
-        loss_str = 'loss: %.4f, loss_fine: %.4f' % \
-            (losses['loss'], losses['loss_fine'],
-             ) # #rl_loss_fine: %.4f   losses['rl_loss_fine']
-        # loss_str = 'loss: %.4f, loss_fine: %.4f, loss_frame: %.4f, loss_event: %.4f, loss_ev2st: %.4f, loss_fr2st: %.4f, loss_fr2ev: %.4f' % \
-        #     (losses['loss'], losses['loss_fine'], losses['loss_frame'],
-        #      losses['loss_event'], losses['loss_ev2st'], losses['loss_fr2st'], losses['loss_fr2ev'])
+        loss_str = 'loss: %.4f, loss_fine: %.4f, rl_loss_fine: %.4f' % \
+            (losses['loss'], losses['loss_fine'], losses['rl_loss_fine']
+             )
 
         if step is not None:
             loss_str = 'step: %d, %s' % (step, loss_str)
 
         _log(loss_str)
-
-    ### Not used in this project!
-    def _insert_yy(rets):
-        batch_ = rets['batch']
-        batch_size_ = rets['batch_size']
-        yy_ids_ = rets['yy_ids']
-        yy_len_ = rets['yy_len']
-
-        x1x2y_ids_ = batch_['x1x2y_ids']
-        x1x2y_len_ = batch_['x1x2y_len']
-
-        x1xx2_ids_ = batch_['x1xx2_ids']
-        x1xx2_len_ = batch_['x1xx2_len']
-
-        x1xx2yy_ids_ = tx.utils.varlength_concat_py(x1xx2_ids_, yy_ids_, x1xx2_len_)
-        x1xx2yy_len_ = x1xx2_len_ + yy_len_
-        x1xx2yyx1x2y_ids_ = tx.utils.varlength_concat_py(x1xx2yy_ids_, x1x2y_ids_, x1xx2yy_len_)
-        x1xx2yyx1x2y_len_ = x1xx2yy_len_ + x1x2y_len_
-        x1xx2yyx1x2y_max_len_ = np.max(x1xx2yyx1x2y_len_)
-        x1xx2yyx1x2y_ids_ = x1xx2yyx1x2y_ids_[:, :x1xx2yyx1x2y_max_len_]
-
-        x1xx2yyx1x2_len_ = x1xx2yy_len_ + batch_['x1x2_len']
-
-        return {
-            'x1xx2yyx1x2y_ids': x1xx2yyx1x2y_ids_,
-            'x1xx2yyx1x2y_len': x1xx2yyx1x2y_len_,
-            'x1xx2yyx1x2_len': x1xx2yyx1x2_len_
-        }
+        
 
     def _is_head():
         if not FLAGS.distributed:
@@ -672,13 +517,13 @@ def main(_):
                     x1_ids: rets_data['batch']['x1_ids'], x1_len: rets_data['batch']['x1_len']
                 })
 
-                # prepare sample stories for classification
-                story_rl = format_generated_stories_for_clf(proc, reward_rets['sample_rl'], reward_rets['sample_len'])
-                story_base = format_generated_stories_for_clf(proc, reward_rets['greedy_sym'], reward_rets['greedy_len'])
+                # prepare samples for classification
+                sample_rl = format_generated_text_for_clf(proc, reward_rets['sample_rl'], reward_rets['sample_len'])
+                sample_base = format_generated_text_for_clf(proc, reward_rets['greedy_sym'], reward_rets['greedy_len'])
 
                 # add reward calculation here
-                reward_rl = get_reward(rets_data['batch']['x4_emo'], story_rl)
-                reward_base = get_reward(rets_data['batch']['x4_emo'], story_base)
+                reward_rl = get_reward(rets_data['batch']['x4_emo'], sample_rl)
+                reward_base = get_reward(rets_data['batch']['x4_emo'], sample_base)
 
                 # self-critical reward
                 reward_sc = [rr - rb for rr, rb in zip(reward_rl, reward_base)]
@@ -690,17 +535,6 @@ def main(_):
                     x1_len: rets_data['batch']['x1_len'],
                     x1x4_ids: rets_data['batch']['x1x4_ids'],
                     x1x4_len: rets_data['batch']['x1x4_len'],
-                    # x4_emo: rets_data['batch']['x4_emo'],
-                    # x1x2_ids: rets_data['batch']['x1x2_ids'],
-                    # x1x2_len: rets_data['batch']['x1x2_len'],
-                    # x1x3_ids: rets_data['batch']['x1x3_ids'],
-                    # x1x3_len: rets_data['batch']['x1x3_len'],
-                    # x1x3x4_ids: rets_data['batch']['x1x3x4_ids'],
-                    # x1x3x4_len: rets_data['batch']['x1x3x4_len'],
-                    # x1x2x4_ids: rets_data['batch']['x1x2x4_ids'],
-                    # x1x2x4_len: rets_data['batch']['x1x2x4_len'],
-                    # x1x2x3_ids: rets_data['batch']['x1x2x3_ids'],
-                    # x1x2x3_len: rets_data['batch']['x1x2x3_len'],
                     tau: config_train.tau,
                     tx.global_mode(): tf.estimator.ModeKeys.TRAIN,
                     reward: reward_sc
@@ -739,6 +573,7 @@ def main(_):
             except tf.errors.OutOfRangeError:
                 break
 
+    # TODO: should rewrite dev and test
     def _dev_epoch(sess):
         """Evaluates on the dev set.
         """
@@ -773,17 +608,6 @@ def main(_):
                     x1_len: rets_data['batch']['x1_len'],
                     x1x4_ids: rets_data['batch']['x1x4_ids'],
                     x1x4_len: rets_data['batch']['x1x4_len'],
-                    # x4_emo: rets_data['batch']['x4_emo'],
-                    # x1x2_ids: rets_data['batch']['x1x2_ids'],
-                    # x1x2_len: rets_data['batch']['x1x2_len'],
-                    # x1x3_ids: rets_data['batch']['x1x3_ids'],
-                    # x1x3_len: rets_data['batch']['x1x3_len'],
-                    # x1x3x4_ids: rets_data['batch']['x1x3x4_ids'],
-                    # x1x3x4_len: rets_data['batch']['x1x3x4_len'],
-                    # x1x2x4_ids: rets_data['batch']['x1x2x4_ids'],
-                    # x1x2x4_len: rets_data['batch']['x1x2x4_len'],
-                    # x1x2x3_ids: rets_data['batch']['x1x2x3_ids'],
-                    # x1x2x3_len: rets_data['batch']['x1x2x3_len'],
                     tau: config_train.tau,
                     tx.global_mode(): tf.estimator.ModeKeys.PREDICT,
                 }
@@ -824,86 +648,6 @@ def main(_):
                 'samples': x4_ids_fine
             }
             res_fn_appendix = "x1"
-
-        # if FLAGS.frame:
-        #     _log('Generation input: x1')
-        #     fetches = {
-        #         'inputs': batch['x1_ids'],
-        #         'length': batch['x1_len'],
-        #         'samples_length': x2_len_fr,
-        #         'samples': x2_ids_fr
-        #     }
-        #     res_fn_appendix = "x1"
-
-        # if FLAGS.event:
-        #     _log('Generation input: x1')
-        #     fetches = {
-        #         'inputs': batch['x1_ids'],
-        #         'length': batch['x1_len'],
-        #         'samples_length': x3_len_ev,
-        #         'samples': x3_ids_ev
-        #     }
-        #     res_fn_appendix = "x1"
-        #
-        # elif FLAGS.event2story:
-        #     _log('Generation input: x1x3')
-        #     fetches = {
-        #         'inputs': batch['x1x3_ids'],
-        #         'length': batch['x1x3_len'],
-        #         'samples_length': x4_len_ev2st,
-        #         'samples': x4_ids_ev2st
-        #     }
-        #     res_fn_appendix = "x1x3"
-
-        # elif FLAGS.frame2story:
-        #     _log('Generation input: x1x2')
-        #     fetches = {
-        #         'inputs': batch['x1x2_ids'],
-        #         'length': batch['x1x2_len'],
-        #         'samples_length': x4_len_fr2st,
-        #         'samples': x4_ids_fr2st
-        #     }
-        #     res_fn_appendix = "x1x2"
-
-        # elif FLAGS.frame2event:
-        #     _log('Generation input: x1x2')
-        #     fetches = {
-        #         'inputs': batch['x1x2_ids'],
-        #         'length': batch['x1x2_len'],
-        #         'samples_length': x3_len_fr2ev,
-        #         'samples': x3_ids_fr2ev
-        #     }
-        #     res_fn_appendix = "x1x2"
-
-
-
-        # if FLAGS.finetune:
-        #     _log('Generation input: x1')
-        #     fetches = {
-        #         'inputs': batch['x1_ids'],
-        #         'length': batch['x1_len'],
-        #         'samples_length': yy_len_fine,
-        #         'samples': yy_ids_fine
-        #     }
-        #     res_fn_appendix = "x1xx2"
-        # elif FLAGS.roc:
-        #     _log('Generation input: x1x2')
-        #     fetches = {
-        #         'inputs': batch['x1x2_ids'],
-        #         'length': batch['x1x2_len'],
-        #         'samples_length': yy_len_roc,
-        #         'samples': yy_ids_roc
-        #     }
-        #     res_fn_appendix = "x1x2"
-        # else:
-        #     _log('Generation input: x1x2yx1xx2')
-        #     fetches = {
-        #         'inputs': batch['x1x2yx1xx2_ids'],
-        #         'length': batch['x1x2yx1xx2_len'],
-        #         'samples_length': yy_len,
-        #         'samples': yy_ids
-        #     }
-        #     res_fn_appendix = "x1x2yx1xx2"
 
 
         while True:
