@@ -382,8 +382,8 @@ def main(_):
             'loss_frame': config_train.w_frame * loss_frame,
             'loss_event': config_train.w_event * loss_event,
             'loss_ev2st': config_train.w_ev2st * loss_ev2st,
-            'loss_fr2st': config_train.w_fr2st * loss_fr2st
-            'loss_fr2ev': config_train.w_fr2ev * loss_fr2ev
+            'loss_fr2st': config_train.w_fr2st * loss_fr2st,
+            'loss_fr2ev': config_train.w_fr2ev * loss_fr2ev,
         }
     else:
         loss = loss_yy
